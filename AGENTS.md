@@ -69,7 +69,7 @@ https://github.com/dreego-stack/dreego/blob/main/_docs/build-hooks.md
 
 - Max 300 lines per handwritten file
 - No code comments (except where needed for clarity)
-- Go 1.22+, prefer standard library
+- Go 1.27+, prefer standard library
 - One Go package per repository
 
 ## Commit Convention
