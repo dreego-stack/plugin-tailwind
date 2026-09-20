@@ -1,5 +1,5 @@
 // Package render defines the internal, target-neutral render contract.
-// Targets (SSG, Wails) consume Result directly. It must not import net/http.
+// SSR and desktop hosts consume Result directly. It must not import net/http.
 package render
 
 import (
@@ -8,6 +8,10 @@ import (
 
 type Result struct {
 	HTML []byte
+}
+
+type Renderable interface {
+	Render(context.RenderContext) (Result, error)
 }
 
 func Component(fn func(c context.RenderContext) (Result, error)) (Result, error) {

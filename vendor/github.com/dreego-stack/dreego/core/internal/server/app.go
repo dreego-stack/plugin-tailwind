@@ -8,8 +8,9 @@ import (
 	"sync/atomic"
 
 	corei18n "github.com/dreego-stack/dreego/core/internal/i18n"
-	mw "github.com/dreego-stack/dreego/core/internal/middleware"
-	sess "github.com/dreego-stack/dreego/core/internal/session"
+	"github.com/dreego-stack/dreego/core/internal/render"
+	mw "github.com/dreego-stack/dreego/internal/middleware"
+	sess "github.com/dreego-stack/dreego/internal/session"
 )
 
 type Store = sess.Store
@@ -36,6 +37,8 @@ type App struct {
 	buildDone      chan struct{}
 	i18nConfig     *corei18n.Config
 	localizer      corei18n.Localizer
+	renderPages    map[string]render.Renderable
+	staticAssets   map[string]StaticAsset
 }
 
 func New() *App {
@@ -46,6 +49,8 @@ func New() *App {
 		customRules:    map[string]func(string) string{},
 		cspHeader:      mw.DefaultCSP,
 		buildDone:      make(chan struct{}),
+		renderPages:    map[string]render.Renderable{},
+		staticAssets:   map[string]StaticAsset{},
 	}
 	a.ready.Store(true)
 	return a
@@ -83,7 +88,7 @@ func (a *App) Build() error {
 		return err
 	}
 
-	if a.csrfEnabled && a.sessionStore == nil {
+	if a.csrfEnabled && a.sessionStore == nil && a.stateChangingRoute() {
 		a.warnMissingSessionStore()
 	}
 

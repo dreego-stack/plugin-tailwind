@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	sess "github.com/dreego-stack/dreego/core/internal/session"
+	sess "github.com/dreego-stack/dreego/internal/session"
 )
 
 func (a *App) redirectRewriteMiddleware(next http.Handler) http.Handler {

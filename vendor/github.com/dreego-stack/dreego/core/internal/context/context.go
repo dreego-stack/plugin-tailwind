@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/dreego-stack/dreego/core/internal/middleware"
-	"github.com/dreego-stack/dreego/core/internal/session"
+	"github.com/dreego-stack/dreego/internal/middleware"
+	"github.com/dreego-stack/dreego/internal/session"
 )
 
 var sessionLogger = slog.New(slog.NewJSONHandler(os.Stderr, nil))

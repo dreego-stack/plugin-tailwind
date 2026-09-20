@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/dreego-stack/dreego/core/internal/session"
+	"github.com/dreego-stack/dreego/internal/session"
 )
 
 func CSRF(store session.Store) func(http.Handler) http.Handler {
