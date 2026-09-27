@@ -5,14 +5,18 @@ import (
 	"net/http"
 
 	"github.com/dreego-stack/dreego/core/internal/context"
+	"github.com/dreego-stack/dreego/core/internal/render"
 	"github.com/dreego-stack/dreego/core/internal/server"
-	"github.com/dreego-stack/dreego/core/internal/session"
-	"github.com/dreego-stack/dreego/core/internal/validate"
+	"github.com/dreego-stack/dreego/internal/session"
+	"github.com/dreego-stack/dreego/internal/validate"
 )
 
 var ErrRedirect = context.ErrRedirect
 var ErrAppBuilt = server.ErrAppBuilt
 var ErrRouteConflict = server.ErrRouteConflict
+var ErrRenderRouteNotFound = server.ErrRenderRouteNotFound
+var ErrDynamicRenderRoute = server.ErrDynamicRenderRoute
+var ErrStaticAssetNotFound = server.ErrStaticAssetNotFound
 var ErrSessionTooLarge = session.ErrSessionTooLarge
 var ErrCookiePathOverride = session.ErrCookiePathOverride
 
@@ -21,9 +25,7 @@ type Context = context.Context
 type SSRContext = context.SSRContext
 type RenderContext = context.RenderContext
 
-type Component interface {
-	Render(ctx RenderContext) (Result, error)
-}
+type Component = render.Renderable
 
 type ComponentFunc func(ctx RenderContext) (Result, error)
 
@@ -32,6 +34,9 @@ func (f ComponentFunc) Render(ctx RenderContext) (Result, error) {
 }
 
 type App = server.App
+type StaticAsset = server.StaticAsset
+type Profile = server.Profile
+type ProfileCookie = server.ProfileCookie
 
 func New() *App {
 	return server.New()

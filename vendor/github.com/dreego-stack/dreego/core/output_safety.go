@@ -26,8 +26,8 @@ func SafeSrcdoc(v any) string {
 
 // SafeURL renders v for a URL attribute such as href, src, or action. Values
 // with an unsafe or unknown scheme (javascript:, data:, vbscript:, file:, …)
-// are replaced with "#". Relative URLs and http, https, mailto, and tel are
-// allowed. The result is HTML-escaped.
+// are replaced with "#". Relative URLs and http, https, mailto, tel, webcal,
+// and caldav are allowed. The result is HTML-escaped.
 func SafeURL(v any) string {
 	s := fmt.Sprintf("%v", v)
 	if !safeURLScheme(s) {
@@ -112,7 +112,7 @@ func safeURLScheme(s string) bool {
 		}
 	}
 	switch scheme {
-	case "http", "https", "mailto", "tel":
+	case "http", "https", "mailto", "tel", "webcal", "caldav":
 		return true
 	}
 	return false

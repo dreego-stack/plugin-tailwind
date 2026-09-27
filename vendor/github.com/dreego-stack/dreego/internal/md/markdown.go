@@ -5,8 +5,6 @@ import (
 	"html"
 	"regexp"
 	"strings"
-
-	"github.com/dreego-stack/dreego/internal/transpiler/ir"
 )
 
 type Mode int
@@ -17,37 +15,45 @@ const (
 )
 
 var (
-	atxHeading     = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
-	ulItem         = regexp.MustCompile(`^[-*+]\s+(.*)$`)
-	olItem         = regexp.MustCompile(`^(\d+)\.\s+(.*)$`)
+	AtxHeading     = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
+	ULItem         = regexp.MustCompile(`^[-*+]\s+(.*)$`)
+	OLItem         = regexp.MustCompile(`^(\d+)\.\s+(.*)$`)
 	listMarker     = regexp.MustCompile(`^([-*+]|\d+\.)\s*$`)
 	codeRe         = regexp.MustCompile("`([^`]*)`")
 	linkRe         = regexp.MustCompile(`\[([^\]]*)\]\(([^)]*)\)`)
 	strongRe       = regexp.MustCompile(`\*\*([^*]+)\*\*`)
 	emRe           = regexp.MustCompile(`\*([^*]+)\*`)
-	htmlBlockStart = regexp.MustCompile(`^</?([a-zA-Z][a-zA-Z0-9-]*)(\s|>|/)`)
+	HTMLBlockStart = regexp.MustCompile(`^</?([a-zA-Z][a-zA-Z0-9-]*)(\s|>|/)`)
 	fenceLanguage  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_+.#-]*$`)
 )
 
-func safeFenceLanguage(info string) string {
+func SafeFenceLanguage(info string) string {
 	if fenceLanguage.MatchString(info) {
 		return info
 	}
 	return ""
 }
 
-func ToNodes(src string, mode Mode) ([]ir.TemplateNode, error) {
-	return parseBlocks(src, newRenderer(mode))
+func ToHTML(src string, mode Mode) (string, error) {
+	nodes, err := ParseBlocks(src, mode)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(nodes, ""), nil
 }
 
-func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
+func ParseBlocks(src string, mode Mode) ([]string, error) {
+	return parseBlocks(src, NewRenderer(mode))
+}
+
+func parseBlocks(src string, r *Renderer) ([]string, error) {
 	lines := strings.Split(src, "\n")
-	var nodes []ir.TemplateNode
+	var nodes []string
 	var para []string
 
 	flushPara := func() {
 		if len(para) > 0 {
-			nodes = append(nodes, textNode("<p>"+r.renderInline(strings.Join(para, " "))+"</p>"))
+			nodes = append(nodes, "<p>"+r.RenderInline(strings.Join(para, " "))+"</p>")
 			para = nil
 		}
 	}
@@ -58,7 +64,7 @@ func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
 
 		if strings.HasPrefix(trimmed, "```") {
 			flushPara()
-			lang := safeFenceLanguage(strings.TrimSpace(strings.TrimPrefix(trimmed, "```")))
+			lang := SafeFenceLanguage(strings.TrimSpace(strings.TrimPrefix(trimmed, "```")))
 			var code []string
 			i++
 			for i < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[i]), "```") {
@@ -70,11 +76,11 @@ func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
 				open += ` class="language-` + html.EscapeString(lang) + `"`
 			}
 			open += ">"
-			nodes = append(nodes, textNode(open+strings.Join(code, "\n")+"</code></pre>"))
+			nodes = append(nodes, open+strings.Join(code, "\n")+"</code></pre>")
 			continue
 		}
 
-		if htmlBlockStart.MatchString(trimmed) {
+		if HTMLBlockStart.MatchString(trimmed) {
 			flushPara()
 			var raw []string
 			for i < len(lines) && strings.TrimSpace(lines[i]) != "" {
@@ -86,20 +92,20 @@ func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
 				i++
 			}
 			i--
-			nodes = append(nodes, textNode(strings.Join(raw, "\n")))
+			nodes = append(nodes, strings.Join(raw, "\n"))
 			continue
 		}
 
-		if m := atxHeading.FindStringSubmatch(trimmed); m != nil {
+		if m := AtxHeading.FindStringSubmatch(trimmed); m != nil {
 			flushPara()
 			level := len(m[1])
-			nodes = append(nodes, textNode(fmt.Sprintf("<h%d>%s</h%d>", level, r.renderInline(m[2]), level)))
+			nodes = append(nodes, fmt.Sprintf("<h%d>%s</h%d>", level, r.RenderInline(m[2]), level))
 			continue
 		}
 
-		if isHR(trimmed) {
+		if IsHR(trimmed) {
 			flushPara()
-			nodes = append(nodes, textNode("<hr>"))
+			nodes = append(nodes, "<hr>")
 			continue
 		}
 
@@ -111,7 +117,7 @@ func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
 				i++
 			}
 			i--
-			nodes = append(nodes, textNode("<blockquote>"+r.renderInline(strings.Join(q, " "))+"</blockquote>"))
+			nodes = append(nodes, "<blockquote>"+r.RenderInline(strings.Join(q, " "))+"</blockquote>")
 			continue
 		}
 
@@ -119,23 +125,23 @@ func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
 			return nil, fmt.Errorf("md: unparseable list marker on line %d", i+1)
 		}
 
-		if m := ulItem.FindStringSubmatch(trimmed); m != nil {
+		if m := ULItem.FindStringSubmatch(trimmed); m != nil {
 			flushPara()
 			items, next := parseList(lines, i, r)
 			i = next
-			nodes = append(nodes, textNode("<ul>"+strings.Join(items, "")+"</ul>"))
+			nodes = append(nodes, "<ul>"+strings.Join(items, "")+"</ul>")
 			continue
 		}
 
-		if m := olItem.FindStringSubmatch(trimmed); m != nil {
+		if m := OLItem.FindStringSubmatch(trimmed); m != nil {
 			flushPara()
 			items, next := parseList(lines, i, r)
 			i = next
-			nodes = append(nodes, textNode("<ol>"+strings.Join(items, "")+"</ol>"))
+			nodes = append(nodes, "<ol>"+strings.Join(items, "")+"</ol>")
 			continue
 		}
 
-		if strings.Contains(trimmed, "|") && i+1 < len(lines) && isTableSeparator(lines[i+1]) {
+		if strings.Contains(trimmed, "|") && i+1 < len(lines) && IsTableSeparator(lines[i+1]) {
 			flushPara()
 			header := trimmed
 			sep := strings.TrimSpace(lines[i+1])
@@ -146,13 +152,13 @@ func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
 				i++
 			}
 			i--
-			nodes = append(nodes, textNode(buildTable(header, sep, body, r)))
+			nodes = append(nodes, buildTable(header, sep, body, r))
 			continue
 		}
 
-		if m := footnoteDefRe.FindStringSubmatch(trimmed); m != nil {
+		if m := FootnoteDefRe.FindStringSubmatch(trimmed); m != nil {
 			flushPara()
-			r.addDef(m[1], m[2])
+			r.AddDef(m[1], m[2])
 			continue
 		}
 
@@ -165,17 +171,13 @@ func parseBlocks(src string, r *mdRenderer) ([]ir.TemplateNode, error) {
 	}
 
 	flushPara()
-	if r.hasDefs() {
-		nodes = append(nodes, textNode(r.footnotesSection()))
+	if r.HasDefs() {
+		nodes = append(nodes, r.FootnotesSection())
 	}
 	return nodes, nil
 }
 
-func textNode(content string) ir.TemplateNode {
-	return ir.TemplateNode{Type: ir.NodeText, Content: content}
-}
-
-func isHR(s string) bool {
+func IsHR(s string) bool {
 	if !strings.HasPrefix(s, "-") {
 		return false
 	}
