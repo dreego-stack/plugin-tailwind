@@ -33,6 +33,7 @@ type CookieStore struct {
 }
 
 type CookiePolicy struct {
+	Name     string
 	SameSite http.SameSite
 	Secure   bool
 	HttpOnly bool
@@ -60,6 +61,9 @@ func NewCookieStore(secret []byte) *CookieStore {
 func (s *CookieStore) SetCookiePolicy(p CookiePolicy) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if p.Name != "" {
+		s.name = p.Name
+	}
 	if p.SameSite != 0 {
 		s.policy.SameSite = p.SameSite
 	}
@@ -77,6 +81,12 @@ func (s *CookieStore) SetCookiePolicy(p CookiePolicy) {
 	}
 }
 
+func (s *CookieStore) cookieName() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.name
+}
+
 func (s *CookieStore) SetTrustedProxies(addrs []string) {
 	m := map[string]bool{}
 	for _, a := range addrs {
@@ -87,7 +97,7 @@ func (s *CookieStore) SetTrustedProxies(addrs []string) {
 	s.trustedProxies = m
 }
 
-func (s *CookieStore) Name() string { return s.name }
+func (s *CookieStore) Name() string { return s.cookieName() }
 
 func (s *CookieStore) TrustedProxies() map[string]bool {
 	s.mu.RLock()
@@ -136,7 +146,7 @@ func (s *CookieStore) Set(w http.ResponseWriter, r *http.Request, key, value str
 	}
 	*r = *r.WithContext(context.WithValue(r.Context(), ctxKey{}, next))
 	http.SetCookie(w, &http.Cookie{
-		Name:     s.name,
+		Name:     s.cookieName(),
 		Value:    encoded,
 		MaxAge:   opt(opts, func(o *Options) int { return o.MaxAge }),
 		Secure:   s.resolveSecure(r, opts),
@@ -151,7 +161,7 @@ func (s *CookieStore) load(r *http.Request) (map[string]string, error) {
 	if m, ok := r.Context().Value(ctxKey{}).(map[string]string); ok {
 		return m, nil
 	}
-	ck, err := r.Cookie(s.name)
+	ck, err := r.Cookie(s.cookieName())
 	if err != nil {
 		return map[string]string{}, nil
 	}
@@ -172,7 +182,7 @@ func (s *CookieStore) Delete(w http.ResponseWriter, r *http.Request, key string)
 
 func (s *CookieStore) Destroy(w http.ResponseWriter, r *http.Request) error {
 	http.SetCookie(w, &http.Cookie{
-		Name:     s.name,
+		Name:     s.cookieName(),
 		Value:    "",
 		MaxAge:   -1,
 		Secure:   s.resolveSecure(r, nil),

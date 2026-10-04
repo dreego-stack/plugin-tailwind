@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/dreego-stack/dreego/core/internal/middleware"
-	"github.com/dreego-stack/dreego/core/internal/session"
+	"github.com/dreego-stack/dreego/internal/middleware"
+	"github.com/dreego-stack/dreego/internal/session"
 )
 
 var sessionLogger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -17,13 +17,23 @@ type Context interface {
 	gcontext.Context
 	Param(name string) string
 	Data(key string) any
+	Set(key string, value any)
+	Delete(key string)
+	Get(key string) string
+	FormValue(key string) string
+	Query(key string) string
 	Errors(field string) string
 	Old(field string) string
 	Redirect(url string, code int) error
 	SessionVal(key string) string
 	SetSessionVal(key, value string)
 	DelSessionVal(key string)
+	DestroySession()
 	CSRFToken() string
+	CSRFInput() string
+	Flash(key, message string)
+	FlashGet(key string) string
+	FlashPeek(key string) string
 	RequestID() string
 	FormError() error
 	SessionError() error

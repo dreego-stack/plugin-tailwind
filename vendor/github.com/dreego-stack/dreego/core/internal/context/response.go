@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"mime"
 	"net/http"
 	"strings"
 )
@@ -38,9 +39,20 @@ func (c *SSRContext) Bind(target any) error {
 }
 
 func (c *SSRContext) Write(status int, contentType string, body []byte) {
-	c.W.Header().Set("Content-Type", contentType+"; charset=utf-8")
+	if !hasCharset(contentType) {
+		contentType += "; charset=utf-8"
+	}
+	c.W.Header().Set("Content-Type", contentType)
 	c.W.WriteHeader(status)
 	c.W.Write(body)
+}
+
+func hasCharset(contentType string) bool {
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return strings.Contains(strings.ToLower(contentType), "charset")
+	}
+	return params["charset"] != ""
 }
 
 func (c *SSRContext) Wants(mime string) bool {
