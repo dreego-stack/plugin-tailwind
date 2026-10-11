@@ -8,8 +8,9 @@ import (
 	"sync/atomic"
 
 	corei18n "github.com/dreego-stack/dreego/core/internal/i18n"
-	mw "github.com/dreego-stack/dreego/core/internal/middleware"
-	sess "github.com/dreego-stack/dreego/core/internal/session"
+	"github.com/dreego-stack/dreego/core/internal/render"
+	mw "github.com/dreego-stack/dreego/internal/middleware"
+	sess "github.com/dreego-stack/dreego/internal/session"
 )
 
 type Store = sess.Store
@@ -19,23 +20,27 @@ type storeValidator interface {
 }
 
 type App struct {
-	mu             sync.RWMutex
-	routes         []route
-	redirects      []redirectRule
-	rewrites       []rewriteRule
-	loggingEnabled bool
-	csrfEnabled    bool
-	errorHandlers  map[int]http.HandlerFunc
-	sessionStore   Store
-	builtHandler   http.Handler
-	middlewares    []func(http.Handler) http.Handler
-	customRules    map[string]func(string) string
-	ready          atomic.Bool
-	cspHeader      string
-	built          bool
-	buildDone      chan struct{}
-	i18nConfig     *corei18n.Config
-	localizer      corei18n.Localizer
+	mu              sync.RWMutex
+	routes          []route
+	redirects       []redirectRule
+	rewrites        []rewriteRule
+	loggingEnabled  bool
+	csrfEnabled     bool
+	errorHandlers   map[int]http.HandlerFunc
+	sessionStore    Store
+	builtHandler    http.Handler
+	middlewares     []func(http.Handler) http.Handler
+	customRules     map[string]func(string) string
+	ready           atomic.Bool
+	cspHeader       string
+	built           bool
+	buildDone       chan struct{}
+	i18nConfig      *corei18n.Config
+	localizer       corei18n.Localizer
+	renderPages     map[string]render.Renderable
+	staticAssets    map[string]StaticAsset
+	profiles        map[string]Profile
+	profileBindings []profileBinding
 }
 
 func New() *App {
@@ -46,6 +51,9 @@ func New() *App {
 		customRules:    map[string]func(string) string{},
 		cspHeader:      mw.DefaultCSP,
 		buildDone:      make(chan struct{}),
+		renderPages:    map[string]render.Renderable{},
+		staticAssets:   map[string]StaticAsset{},
+		profiles:       map[string]Profile{},
 	}
 	a.ready.Store(true)
 	return a
@@ -83,13 +91,20 @@ func (a *App) Build() error {
 		return err
 	}
 
-	if a.csrfEnabled && a.sessionStore == nil {
+	if err := a.validateProfileBindings(); err != nil {
+		return err
+	}
+
+	if a.csrfEnabled && !a.hasSessionCoverage() && a.stateChangingRoute() {
 		a.warnMissingSessionStore()
 	}
 
-	if v, ok := a.sessionStore.(storeValidator); ok {
-		if err := v.Validate(); err != nil {
-			return fmt.Errorf("dreego: session store validation failed: %w", err)
+	if err := validateStore(a.sessionStore); err != nil {
+		return fmt.Errorf("dreego: session store validation failed: %w", err)
+	}
+	for name, p := range a.profiles {
+		if err := validateStore(p.Session); err != nil {
+			return fmt.Errorf("dreego: profile %q session store validation failed: %w", name, err)
 		}
 	}
 	var localeMiddleware func(http.Handler) http.Handler
@@ -122,11 +137,8 @@ func (a *App) Build() error {
 	if localeMiddleware != nil {
 		h = localeMiddleware(h)
 	}
-	if a.sessionStore != nil && a.csrfEnabled {
-		h = mw.CSRF(a.sessionStore)(h)
-	}
-	if a.sessionStore != nil {
-		h = a.sessionMiddleware(h)
+	if a.sessionStore != nil || a.hasProfiles() {
+		h = a.buildSessionStack(h)
 	}
 	for _, v := range slices.Backward(a.middlewares) {
 		if v == nil {

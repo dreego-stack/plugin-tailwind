@@ -9,10 +9,14 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/dreego-stack/dreego/core/internal/session"
+	"github.com/dreego-stack/dreego/internal/session"
 )
 
 func CSRF(store session.Store) func(http.Handler) http.Handler {
+	return CSRFWithForbidden(store, nil)
+}
+
+func CSRFWithForbidden(store session.Store, onForbidden http.HandlerFunc) func(http.Handler) http.Handler {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +36,7 @@ func CSRF(store session.Store) func(http.Handler) http.Handler {
 			http.SetCookie(w, &http.Cookie{
 				Name:     "csrf_token",
 				Value:    token,
-				Path:     "/",
+				Path:     csrfCookiePath(store),
 				HttpOnly: false,
 				Secure:   secure,
 				SameSite: http.SameSiteStrictMode,
@@ -52,6 +56,11 @@ func CSRF(store session.Store) func(http.Handler) http.Handler {
 					clientToken = r.FormValue("csrf_token")
 				}
 				if subtle.ConstantTimeCompare([]byte(clientToken), []byte(token)) != 1 {
+					if onForbidden != nil {
+						w.WriteHeader(http.StatusForbidden)
+						onForbidden(w, r)
+						return
+					}
 					http.Error(w, "invalid csrf token", http.StatusForbidden)
 					return
 				}
@@ -69,6 +78,15 @@ func isSecureForCSRF(r *http.Request, store session.Store) bool {
 		return session.IsTLS(r, cs.TrustedProxies())
 	}
 	return false
+}
+
+func csrfCookiePath(store session.Store) string {
+	if cs, ok := store.(*session.CookieStore); ok {
+		if path := cs.CookiePath(); path != "" {
+			return path
+		}
+	}
+	return "/"
 }
 
 func generateCSRFToken() string {
