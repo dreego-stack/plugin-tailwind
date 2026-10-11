@@ -49,6 +49,12 @@ func (s *CookieStore) resolvePath(opts *Options) string {
 	return "/"
 }
 
+// CookiePath exposes the configured cookie path so the CSRF cookie can follow
+// the profile's session cookie policy instead of hardcoding "/".
+func (s *CookieStore) CookiePath() string {
+	return s.resolvePath(nil)
+}
+
 func (s *CookieStore) validatePathOverride(opts *Options) error {
 	if opts == nil || opts.Path == "" {
 		return nil

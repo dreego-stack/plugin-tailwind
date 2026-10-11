@@ -2,8 +2,6 @@ package server
 
 import (
 	"net/http"
-
-	sess "github.com/dreego-stack/dreego/core/internal/session"
 )
 
 func (a *App) redirectRewriteMiddleware(next http.Handler) http.Handler {
@@ -25,12 +23,6 @@ func (a *App) redirectRewriteMiddleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r)
-	})
-}
-
-func (a *App) sessionMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, sess.WithStore(r, a.sessionStore))
 	})
 }
 

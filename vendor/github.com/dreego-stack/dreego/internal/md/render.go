@@ -10,31 +10,31 @@ import (
 var (
 	imageRe       = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]*)\)`)
 	footnoteRefRe = regexp.MustCompile(`\[\^(\d+)\]`)
-	footnoteDefRe = regexp.MustCompile(`^\[\^(\d+)\]:\s*(.*)$`)
+	FootnoteDefRe = regexp.MustCompile(`^\[\^(\d+)\]:\s*(.*)$`)
 )
 
-type mdRenderer struct {
+type Renderer struct {
 	mode      Mode
 	defs      map[string]string
 	refCounts map[string]int
 	refOrder  []string
 }
 
-func newRenderer(mode Mode) *mdRenderer {
-	return &mdRenderer{mode: mode, defs: map[string]string{}, refCounts: map[string]int{}}
+func NewRenderer(mode Mode) *Renderer {
+	return &Renderer{mode: mode, defs: map[string]string{}, refCounts: map[string]int{}}
 }
 
-func (r *mdRenderer) addDef(num, content string) {
+func (r *Renderer) AddDef(num, content string) {
 	if _, ok := r.defs[num]; !ok {
-		r.defs[num] = r.renderInline(content)
+		r.defs[num] = r.RenderInline(content)
 	}
 }
 
-func (r *mdRenderer) hasDefs() bool {
+func (r *Renderer) HasDefs() bool {
 	return len(r.defs) > 0
 }
 
-func (r *mdRenderer) renderInline(s string) string {
+func (r *Renderer) RenderInline(s string) string {
 	var b strings.Builder
 	for len(s) > 0 {
 		i := inlineHTMLStart(s)
@@ -77,12 +77,12 @@ func inlineHTMLStart(s string) int {
 	return -1
 }
 
-func (r *mdRenderer) renderInlineText(s string) string {
+func (r *Renderer) renderInlineText(s string) string {
 	s = html.EscapeString(s)
 	s = codeRe.ReplaceAllString(s, "<code>$1</code>")
 	s = imageRe.ReplaceAllStringFunc(s, func(m string) string {
 		p := imageRe.FindStringSubmatch(m)
-		u := safeURL(p[2], true)
+		u := SafeURL(p[2], true)
 		if u == "" {
 			return m
 		}
@@ -90,7 +90,7 @@ func (r *mdRenderer) renderInlineText(s string) string {
 	})
 	s = linkRe.ReplaceAllStringFunc(s, func(m string) string {
 		p := linkRe.FindStringSubmatch(m)
-		u := safeURL(p[2], false)
+		u := SafeURL(p[2], false)
 		if u == "" {
 			return m
 		}
@@ -102,7 +102,7 @@ func (r *mdRenderer) renderInlineText(s string) string {
 	return s
 }
 
-func (r *mdRenderer) replaceFootnoteRefs(s string) string {
+func (r *Renderer) replaceFootnoteRefs(s string) string {
 	return footnoteRefRe.ReplaceAllStringFunc(s, func(m string) string {
 		num := footnoteRefRe.FindStringSubmatch(m)[1]
 		r.refCounts[num]++
@@ -114,7 +114,7 @@ func (r *mdRenderer) replaceFootnoteRefs(s string) string {
 	})
 }
 
-func (r *mdRenderer) footnotesSection() string {
+func (r *Renderer) FootnotesSection() string {
 	if len(r.refOrder) == 0 {
 		return ""
 	}
@@ -128,12 +128,8 @@ func (r *mdRenderer) footnotesSection() string {
 	return b.String()
 }
 
-func safeURL(raw string, isImage bool) string {
+func SafeURL(raw string, isImage bool) string {
 	u := html.UnescapeString(raw)
-	// html.UnescapeString does a single pass: a decoded &amp; can reveal a
-	// further entity (e.g. &amp;#x09; -> &#x09;). Decode until stable so
-	// entity-encoded control characters are visible to the scheme check and
-	// cannot smuggle a javascript: scheme past hasScheme.
 	for {
 		next := html.UnescapeString(u)
 		if next == u {
